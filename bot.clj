@@ -6,3 +6,5 @@
   {:type "MOVE"
    :metadata {:direction (rand-nth [0 1 2 3 4])}
    :saved-state {}})
+
+(defn run3 [] (println "run 3"))
