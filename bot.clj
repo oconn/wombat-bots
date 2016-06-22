@@ -7,4 +7,9 @@
    :metadata {:direction (rand-nth [0 1 2 3 4])}
    :saved-state {}})
 
-(defn run3 [] (println "run 3"))
+(defn run3
+  [arena saved-state my-id]
+  (println "run 3")
+  {:type "MOVE"
+   :metadata {:direction (rand-nth [0 1 2 3 4])}
+   :saved-state {}})
