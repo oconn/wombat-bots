@@ -2,4 +2,4 @@
 
 git add .
 git ci -m 'update bot'
-gpoh
+git push origin HEAD
