@@ -1,3 +1,5 @@
+(require '[clojure.string :as string])
+
 (defn get-arena-dimensions
   "returns the dimensions of a given arena (NOTE: Not 0 based)"
   [arena]
