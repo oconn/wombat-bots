@@ -1,3 +1,10 @@
+(defn get-arena-dimensions
+  "returns the dimensions of a given arena (NOTE: Not 0 based)"
+  [arena]
+  (let [x (count arena)
+        y ((comp count first) arena)]
+    [x y]))
+
 (defn pprint-arena
   "Pretty Print for a given arena"
   [arena]
