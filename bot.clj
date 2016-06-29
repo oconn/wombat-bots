@@ -11,13 +11,13 @@
   "Pretty Print for a given arena"
   [arena]
   (let [[x-len _] (get-arena-dimensions arena)
-        x-indices (range x-len)]
-    (println " " (string/join " " (vec x-indices)))
+        x-indices (range (dec x-len))]
+    (println " " (string/join " " (map #(format "%2d" %) x-indices)))
     (print
      (string/join "\n" (map-indexed (fn [idx row]
                                       (print
-                                       idx
-                                       (string/join " " (map :display row))
+                                       (format "%2d" idx)
+                                       (string/join "  " (map :display row))
                                        "\n")) arena)))))
 
 (defn run
