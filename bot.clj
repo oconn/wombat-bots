@@ -21,8 +21,10 @@
                                        "\n")) arena)))))
 
 (defn run
-  [{:keys [arena state bot_id energy spawn-bot?] :as step-details}]
-  {:commands [{:cmd "MOVE"
-               :metadata {:direction (rand-nth [0 1 2 3 4])}}
-              {:cmd "SET_STATE"
-               :metadata {:foo "bar"}}]})
+  [{:keys [arena saved-state bot-id energy spawn-bot?] :as step-details}]
+  (let [counter (or (:counter saved-state) 0)]
+    (println "Bot Counter: " counter)
+    {:commands [{:cmd "MOVE"
+                 :metadata {:direction (rand-nth [0 1 2 3 4])}}
+                {:cmd "SET_STATE"
+                 :metadata {:step-counter (inc counter)}}]}))
