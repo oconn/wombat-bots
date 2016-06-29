@@ -3,15 +3,15 @@
 (defn get-arena-dimensions
   "returns the dimensions of a given arena (NOTE: Not 0 based)"
   [arena]
-  (let [x (count arena)
-        y ((comp count first) arena)]
+  (let [x ((comp count first) arena)
+        y (count arena)]
     [x y]))
 
 (defn pprint-arena
   "Pretty Print for a given arena"
   [arena]
   (let [[x-len _] (get-arena-dimensions arena)
-        x-indices (range (dec x-len))]
+        x-indices (range x-len)]
     (println " " (string/join " " (map #(format "%2d" %) x-indices)))
     (print
      (string/join "\n" (map-indexed (fn [idx row]
