@@ -23,7 +23,6 @@
 (defn run
   [{:keys [arena saved-state bot-id energy spawn-bot?] :as step-details}]
   (let [counter (or (:step-counter saved-state) 0)]
-    (pprint-arena arena)
     {:commands [{:cmd "MOVE"
                  :metadata {:direction (rand-nth [0])}}
                 {:cmd "SET_STATE"
