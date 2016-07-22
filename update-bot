@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git ci -m 'update bot'
+git commit -m 'Update wombat!'
 git push origin HEAD
