@@ -11,9 +11,5 @@
                          (repeat 3 {:action :smoke
                                     :metadata {:direction (rand-nth smoke-directions)}})]]
 
-    #_{:command (rand-nth (flatten command-options))
-       :state {:test true}}
-
-    {:command {:action :smoke
-               :metadata {:direction (rand-nth smoke-directions)}}
+    {:command (rand-nth (flatten command-options))
      :state {}}))
