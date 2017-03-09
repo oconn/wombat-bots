@@ -172,6 +172,10 @@
         y (count arena)]
     [x y]))
 
+(defn get-arena-dimensions-zero-based
+  [arena]
+  (map dec (get-arena-dimensions arena)))
+
 (defn- get-in-arena
   {:added "1.0"}
   [[x y] arena]
@@ -222,21 +226,26 @@
   ([{:keys [orientation coords weight move-cmd]} arena-dimensions wrap?]
    (let [frontier-orientations
          (map (fn [next-direction]
-                (cond-> {:orientation (modify-orientation orientation next-direction)
-                         :coords coords
-                         :weight (inc weight)}
-                  (nil? move-cmd) (merge {:move-cmd
-                                          {:action :turn
-                                           :metadata {:direction next-direction}}})))
+                (assoc {:orientation (modify-orientation orientation next-direction)
+                        :coords coords
+                        :weight (inc weight)}
+                       :move-cmd
+                       (if (nil? move-cmd)
+                         {:action :turn
+                          :metadata {:direction next-direction}}
+                         move-cmd)))
               (if (= weight 0)
                 [:right :left :about-face]
                 [:right :left]))
 
          frontier-move
-         (cond-> {:orientation orientation
-                  :coords (get-move-frontier coords orientation arena-dimensions wrap?)
-                  :weight (inc weight)}
-           (nil? move-cmd) (merge {:move-cmd {:action :move}}))]
+         (assoc {:orientation orientation
+                 :coords (get-move-frontier coords orientation arena-dimensions wrap?)
+                 :weight (inc weight)}
+                :move-cmd
+                (if (nil? move-cmd)
+                  {:action :move}
+                  move-cmd))]
      (conj frontier-orientations frontier-move))))
 
 (defn- can-safely-occupy-space?
@@ -251,16 +260,18 @@
   {:added "1.0"}
   [frontier arena explored]
   (filter (fn [{coords :coords}]
-            (let [cell (get-in-arena coords arena)
-                  uuid (get-in cell [:contents :uuid])]
-              (and (nil? (get explored uuid))
-                   (can-safely-occupy-space? cell)))) frontier))
+            (if (nil? coords)
+              false
+              (let [cell (get-in-arena coords arena)
+                    uuid (get-in cell [:contents :uuid])]
+                (and (nil? (get explored uuid))
+                     (can-safely-occupy-space? cell))))) frontier))
 
 (defn sort-arena-by-distance-then-type
   "sorts an arena by distance then type"
   {:added "1.0"}
   [arena origin]
-  (let [arena-dimensions (get-arena-dimensions arena)
+  (let [arena-dimensions (get-arena-dimensions-zero-based arena)
         {{orientation-str :orientation
           uuid :uuid} :contents} (get-in-arena origin arena)
         orientation (keyword orientation-str)]
@@ -282,11 +293,13 @@
 
           (recur (vec (concat (rest frontier) filtered-frontier))
                  (merge explored {(get-in cell [:contents :uuid]) true})
+                 ;; TODO: Push cell onto sorted-arena
                  sorted-arena))))))
 
 ;; Evaluate each expresion with C-x C-e and then evaluate the
 ;; following to test the algorithm
-(prn (sort-arena-by-distance-then-type sample-arena [3 3]))
+(clojure.pprint/pprint
+ (sort-arena-by-distance-then-type sample-arena [3 3]))
 
 (fn [state time-left]
 
