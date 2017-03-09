@@ -313,29 +313,38 @@
                  (merge explored {(get-in cell [:contents :uuid]) true})
                  (add-to-sorted-arena sorted-arena cell frontier-node)))))))
 
+(defn enrich-state
+  "Adds additional information to the given state used to improve
+     the decision-making process"
+  {:added "1.0"}
+  [{:keys [arena
+           local-coords] :as state}]
+  (-> state
+      (assoc :dimensions (get-arena-dimensions-zero-based arena))
+      (assoc :sorted-arena (sort-arena-by-distance-then-type arena local-coords))
+      (dissoc :saved-state)))
+
+(def ^:private sample-state
+  {:local-coords [3 3]
+   :global-coords [4 6]
+   :arena sample-arena
+   :saved-state {}})
+
 ;; Evaluate each expresion with C-x C-e and then evaluate the
-;; following to test the algorithm
+;; following to test algorithms
+
+;; Test the sort algorithm
 (clojure.pprint/pprint
  (sort-arena-by-distance-then-type sample-arena [3 3]))
 
+(time (sort-arena-by-distance-then-type sample-arena [3 3]))
+
+;; Test state enrichment
+(clojure.pprint/pprint
+ (enrich-state sample-state))
+
+(time (enrich-state sample-state))
 
 (fn [state time-left]
-
-  (defn- sort-arena
-    [{:keys [arena local-coords] :as enriched-state}]
-    (assoc enriched-state :sorted-arena (sort-arena-by-distance-than-type arena
-                                                                          local-coords)))
-
-  (defn enrich-state
-    "Adds additional information to the given state used to improve
-     the decision-making process"
-    {:added "1.0"}
-    [{:keys [arena] :as state}]
-    (-> state
-        (assoc :dimensions (get-arena-dimensions arena))
-        (sort-arena)
-        (dissoc :saved-state)))
-
-  {:command {:action :turn
-             :metadata {:direction :right}}
-   :state (enrich-state state)})
+  ;; TODO Wrap code above into this fn
+)
