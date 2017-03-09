@@ -350,16 +350,66 @@
 (defn- remove-self-from-sorted-arena
   "removes current user from the sorted arena"
   {:added "1.0"}
+  [{:keys [local-coords arena my-uuid] :as enriched-state}]
+  (update-in
+   enriched-state
+   [:sorted-arena]
+   (fn [sorted-arena]
+     (-> sorted-arena
+         (update 0 (remove-self my-uuid))
+         (update 1 (remove-self my-uuid))))))
+
+(defn- track-able-cell?
+  [{{type :type} :contents}]
+  (not (contains? #{"fog"} type)))
+
+(defn- update-global-view
+  "updates what your bot has seen historically"
+  {:added "1.0"}
+  [{:keys [global-arena arena my-uuid] :as enriched-state}]
+  (let [update-global-coords-fn (to-global-coords enriched-state)
+        current-global-arena (if global-arena
+                               global-arena
+                               (vec (repeat 10 (vec (repeat 10 nil)))))]
+
+    (assoc enriched-state :global-arena
+           (:y-global-arena
+            (reduce
+             (fn [{:keys [y-idx y-global-arena] :as acc} row]
+               {:y-idx (inc y-idx)
+                :y-global-arena
+                (:x-global-arena
+                 (reduce
+                  (fn [{:keys [x-idx x-global-arena]} cell]
+                    {:x-idx (inc x-idx)
+                     :x-global-arena (if (track-able-cell? cell)
+                                       (assoc-in x-global-arena
+                                                 (update-global-coords-fn
+                                                  (reverse [x-idx y-idx]))
+                                                 cell)
+                                       x-global-arena)})
+                  {:x-idx 0
+                   :x-global-arena y-global-arena} row))})
+             {:y-idx 0
+              :y-global-arena current-global-arena} arena)))))
+
+(defn- add-my-uuid
   [{:keys [local-coords arena] :as enriched-state}]
-  (let [self (get-in-arena local-coords arena)
-        uuid (get-in self [:contents :uuid])]
-    (update-in
-     enriched-state
-     [:sorted-arena]
-     (fn [sorted-arena]
-       (-> sorted-arena
-           (update 0 (remove-self uuid))
-           (update 1 (remove-self uuid)))))))
+  (let [self (get-in-arena local-coords arena)]
+    (assoc enriched-state :my-uuid (get-in self [:contents :uuid]))))
+
+(defn- add-closest-food
+  [{:keys [sorted-arena] :as enriched-state}]
+  (assoc enriched-state
+         :closest-food
+         (reduce (fn [food weight-map]
+                   (if food
+                     food
+                     (if (:food weight-map)
+                       (first (:food weight-map))
+                       nil)))
+                 nil
+                 sorted-arena)))
 
 (defn enrich-state
   "Adds additional information to the given state used to improve
@@ -367,8 +417,11 @@
   {:added "1.0"}
   [{:keys [arena local-coords] :as state}]
   (-> state
+      (add-my-uuid)
       (sort-arena-by-distance-then-type)
-      (remove-self-from-sorted-arena)))
+      (remove-self-from-sorted-arena)
+      (add-closest-food)
+      (update-global-view)))
 
 (def ^:private sample-state
   {:local-coords [3 3]
