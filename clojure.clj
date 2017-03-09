@@ -159,6 +159,10 @@
    {:type "open", :uuid "b8ec04d4-7855-44fa-b600-eeba75b9f3be"},
    :meta []}]])
 
+(def ^:private
+  orientations
+  [:n :s :e :w])
+
 (defn get-arena-dimensions
   "returns the dimensions of a given arena (NOTE: Not 0 based)"
   {:added "1.0"
@@ -168,59 +172,14 @@
         y (count arena)]
     [x y]))
 
-(defn- normalize-slope
-  {:added "1.0"
-   :defined-in "wombats.game.utils"}
-  [coords start]
-  (if (= (vec (first coords)) start)
-    (vec coords)
-    (vec (reverse coords))))
-
-(defn draw-line
-  "Draw a line from x1,y1 to x2,y2 using Bresenham's line algorithm.
-
-    Modified from http://rosettacode.org/wiki/Bitmap/Bresenham%27s_line_algorithm#Clojure"
-  {:added "1.0"
-   :defined-in "wombats.game.utils"}
-  [from to]
-  (let [[x1 y1] from
-        [x2 y2] to
-        dist-x (Math/abs (- x1 x2))
-        dist-y (Math/abs (- y1 y2))
-        steep (> dist-y dist-x)]
-    (let [[x1 y1 x2 y2] (if steep
-                          [y1 x1 y2 x2]
-                          [x1 y1 x2 y2])]
-      (let [[x1 y1 x2 y2] (if (> x1 x2)
-                            [x2 y2 x1 y1]
-                            [x1 y1 x2 y2])]
-        (let  [delta-x (- x2 x1)
-               delta-y (Math/abs (- y1 y2))
-               y-step (if (< y1 y2) 1 -1)]
-          (loop [x x1
-                 y y1
-                 error (Math/floor (/ delta-x 2))
-                 plots [[x y]]]
-            (if (< x x2)
-              (let [[x y err] (if (< error delta-y)
-                                [(inc x) (+ y y-step) (+ error (- delta-x delta-y))]
-                                [(inc x) y (- error delta-y)])]
-                (recur x y err (conj plots [x y])))
-              (if steep
-                (normalize-slope (map (fn [[y x]] [x y]) plots) from)
-                (normalize-slope plots from)))))))))
-
-
 (defn- get-in-arena
+  {:added "1.0"}
   [[x y] arena]
   (get-in arena [y x]))
 
-(def ^:private
-  orientations
-  [:n :s :e :w])
-
 (defn- modify-orientation
-  ""
+  "Return a new orientation based off a provided orientation and the direction
+  you want to turn"
   {:added "1.0"
    :defined "wombats.game.utils"}
   [current-orientation modifier]
@@ -235,6 +194,7 @@
 
 (defn- get-move-frontier
   "Returns the coords from the move command"
+  {:added "1.0"}
   ([coords orientation dimensions]
    (get-move-frontier coords orientation dimensions false))
   ([[x y] orientation [max-x max-y] wrap?]
@@ -283,9 +243,8 @@
   "Predicate used to determine what cells can pass as frontiers"
   {:added "1.0"}
   [cell]
-  (not (contains? #{"wood-barrier"
-                    "steel-barrier"
-                    "fog"} (get-in cell [:contents :type]))))
+  (not (contains? #{"wood-barrier" "steel-barrier" "fog"}
+                  (get-in cell [:contents :type]))))
 
 (defn- filter-frontier
   "Filters all the possible frontiers, returning only explore-able frontiers"
