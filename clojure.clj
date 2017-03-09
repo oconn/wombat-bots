@@ -163,8 +163,8 @@
   orientations
   [:n :s :e :w])
 
-(defn get-arena-dimensions
-  "returns the dimensions of a given arena (NOTE: Not 0 based)"
+(defn- get-arena-dimensions
+  "returns the dimensions of a given arena (NOTE: NOT 0 indexed)"
   {:added "1.0"
    :defined-in "wombats.arena.utils"}
   [arena]
@@ -172,11 +172,14 @@
         y (count arena)]
     [x y]))
 
-(defn get-arena-dimensions-zero-based
+(defn- get-arena-dimensions-zero-based
+  "returns the dimensions of a given arena"
+  {:added "1.0"}
   [arena]
   (map dec (get-arena-dimensions arena)))
 
 (defn- get-in-arena
+  "pulls the cell contents out of an arena at given coords"
   {:added "1.0"}
   [[x y] arena]
   (get-in arena [y x]))
@@ -231,29 +234,23 @@
   {:added "1.0"}
   ([frontier arena-dimensions]
    (calculate-frontier frontier arena-dimensions false))
-  ([{:keys [orientation coords weight move-cmd]} arena-dimensions wrap?]
+  ([{:keys [orientation coords weight cmd-sequence]} arena-dimensions wrap?]
    (let [frontier-orientations
          (map (fn [next-direction]
-                (assoc {:orientation (modify-orientation orientation next-direction)
-                        :coords coords
-                        :weight (inc weight)}
-                       :move-cmd
-                       (if (nil? move-cmd)
-                         {:action :turn
-                          :metadata {:direction next-direction}}
-                         move-cmd)))
+                {:orientation (modify-orientation orientation next-direction)
+                  :coords coords
+                  :weight (inc weight)
+                  :cmd-sequence (conj cmd-sequence {:action :turn
+                                                    :metadata {:direction next-direction}})})
               (if (= weight 0)
                 [:right :left :about-face]
                 [:right :left]))
 
          frontier-move
-         (assoc {:orientation orientation
-                 :coords (get-move-frontier coords orientation arena-dimensions wrap?)
-                 :weight (inc weight)}
-                :move-cmd
-                (if (nil? move-cmd)
-                  {:action :move}
-                  move-cmd))]
+         {:orientation orientation
+          :coords (get-move-frontier coords orientation arena-dimensions wrap?)
+          :weight (inc weight)
+          :cmd-sequence (conj cmd-sequence {:action :move})}]
      (conj frontier-orientations frontier-move))))
 
 (defn- can-safely-occupy-space?
@@ -282,10 +279,12 @@
    {{type :type
      uuid :uuid} :contents}
    {weight :weight
-    move-cmd :move-cmd}]
-  (let [formatted-frontier {:move-cmd move-cmd
-                            :weight weight
-                            :uuid uuid}]
+    coords :coords
+    cmd-sequence :cmd-sequence}]
+  (let [formatted-frontier {:weight weight
+                            :uuid uuid
+                            :coords coords
+                            :cmd-sequence cmd-sequence}]
     (update-in sorted-arena
                [weight (keyword type)]
                (fn [coll]
@@ -293,23 +292,38 @@
                    (conj coll formatted-frontier)
                    [formatted-frontier])))))
 
+(defn- to-global-coords
+  "Converts local coordinates passed by the partially occluded arena
+  to their corresponding global coordinates"
+  {:added "1.0"}
+  [{[origin-x origin-y] :local-coords
+    [global-x global-y] :global-coords
+    [dim-x dim-y] :global-dimensions}]
+  (fn [[target-x target-y]]
+    (let [delta-x (- target-x origin-x)
+          delta-y (- target-y origin-y)
+          new-x (mod (+ global-x delta-x) dim-y)
+          new-y (mod (+ global-y delta-y) dim-x)]
+      [new-x new-y])))
+
 (defn sort-arena-by-distance-then-type
   "sorts an arena by distance then type"
   {:added "1.0"}
-  [arena origin]
+  [{:keys [arena local-coords] :as enriched-state}]
   (let [arena-dimensions (get-arena-dimensions-zero-based arena)
+        update-global-coords-fn (to-global-coords enriched-state)
         {{orientation-str :orientation
-          uuid :uuid} :contents} (get-in-arena origin arena)
+          uuid :uuid} :contents} (get-in-arena local-coords arena)
         orientation (keyword orientation-str)]
-    (loop [frontier [{:coords origin
+    (loop [frontier [{:coords local-coords
                       :orientation orientation
                       :uuid uuid
                       :weight 0
-                      :move-cmd nil}]
+                      :cmd-sequence []}]
            explored {}
            sorted-arena []]
       (if (empty? frontier)
-        sorted-arena
+        (assoc enriched-state :sorted-arena sorted-arena)
 
         (let [frontier-node (first frontier)
               cell (get-in-arena (:coords frontier-node) arena)
@@ -317,29 +331,49 @@
               filtered-frontier (filter-frontier next-frontier arena explored)]
           (recur (vec (concat (rest frontier) filtered-frontier))
                  (merge explored {(get-in cell [:contents :uuid]) true})
-                 (add-to-sorted-arena sorted-arena cell frontier-node)))))))
+                 (add-to-sorted-arena sorted-arena
+                                      cell
+                                      (update frontier-node
+                                              :coords
+                                              update-global-coords-fn))))))))
 
-(defn- calculate-fire-path
-  "Determines what elements are in the current fire path"
+(defn- remove-self
+  [uuid]
+  (fn [{:keys [wombat] :as weight-map}]
+    (if wombat
+      (let [filtered-list (vec (filter #(not= uuid (:uuid %)) wombat))]
+        (if (empty? filtered-list)
+          (dissoc weight-map :wombat)
+          (assoc weight-map :wombat filtered-list)))
+      weight-map)))
+
+(defn- remove-self-from-sorted-arena
+  "removes current user from the sorted arena"
   {:added "1.0"}
-  [arena coords]
-  (let [{orientation :orientation} (get-in-arena coords arena)]))
+  [{:keys [local-coords arena] :as enriched-state}]
+  (let [self (get-in-arena local-coords arena)
+        uuid (get-in self [:contents :uuid])]
+    (update-in
+     enriched-state
+     [:sorted-arena]
+     (fn [sorted-arena]
+       (-> sorted-arena
+           (update 0 (remove-self uuid))
+           (update 1 (remove-self uuid)))))))
 
 (defn enrich-state
   "Adds additional information to the given state used to improve
      the decision-making process"
   {:added "1.0"}
-  [{:keys [arena
-           local-coords] :as state}]
+  [{:keys [arena local-coords] :as state}]
   (-> state
-      (assoc :dimensions (get-arena-dimensions-zero-based arena))
-      (assoc :sorted-arena (sort-arena-by-distance-then-type arena local-coords))
-      (assoc :fire-path (calculate-fire-path arena local-coords))
-      (dissoc :saved-state)))
+      (sort-arena-by-distance-then-type)
+      (remove-self-from-sorted-arena)))
 
 (def ^:private sample-state
   {:local-coords [3 3]
-   :global-coords [4 6]
+   :global-coords [2 1]
+   :global-dimensions [11 11]
    :arena sample-arena
    :saved-state {}})
 
@@ -355,8 +389,8 @@
 
 ;; Test the sort algorithm
 (clojure.pprint/pprint
- (sort-arena-by-distance-then-type sample-arena [3 3]))
-(benchmark #(sort-arena-by-distance-then-type sample-arena [3 3]))
+ (sort-arena-by-distance-then-type sample-state))
+(benchmark #(sort-arena-by-distance-then-type sample-state))
 
 ;; Test state enrichment
 (clojure.pprint/pprint
