@@ -196,17 +196,25 @@
         current-orientation)
       current-orientation)))
 
+(defn- get-move-coords
+  "Gets the updated coords for moving.
+
+  :Note wrapping not assumed."
+  {:added "1.0"}
+  [[x y] orientation]
+  (case orientation
+    :n [x (dec y)]
+    :e [(inc x) y]
+    :s [x (inc y)]
+    :w [(dec x) y]))
+
 (defn- get-move-frontier
   "Returns the coords from the move command"
   {:added "1.0"}
   ([coords orientation dimensions]
    (get-move-frontier coords orientation dimensions false))
   ([[x y] orientation [max-x max-y] wrap?]
-   (let [new-coords (case orientation
-                      :n [x (dec y)]
-                      :e [(inc x) y]
-                      :s [x (inc y)]
-                      :w [(dec x) y])
+   (let [new-coords (get-move-coords [x y] orientation)
          [new-x new-y] new-coords]
      (if wrap?
        (case orientation
@@ -300,18 +308,22 @@
                       :move-cmd nil}]
            explored {}
            sorted-arena []]
-
       (if (empty? frontier)
         sorted-arena
-        ;; Get first item off of frontier
+
         (let [frontier-node (first frontier)
               cell (get-in-arena (:coords frontier-node) arena)
               next-frontier (calculate-frontier frontier-node arena-dimensions)
               filtered-frontier (filter-frontier next-frontier arena explored)]
-
           (recur (vec (concat (rest frontier) filtered-frontier))
                  (merge explored {(get-in cell [:contents :uuid]) true})
                  (add-to-sorted-arena sorted-arena cell frontier-node)))))))
+
+(defn- calculate-fire-path
+  "Determines what elements are in the current fire path"
+  {:added "1.0"}
+  [arena coords]
+  (let [{orientation :orientation} (get-in-arena coords arena)]))
 
 (defn enrich-state
   "Adds additional information to the given state used to improve
@@ -322,6 +334,7 @@
   (-> state
       (assoc :dimensions (get-arena-dimensions-zero-based arena))
       (assoc :sorted-arena (sort-arena-by-distance-then-type arena local-coords))
+      (assoc :fire-path (calculate-fire-path arena local-coords))
       (dissoc :saved-state)))
 
 (def ^:private sample-state
@@ -333,17 +346,22 @@
 ;; Evaluate each expresion with C-x C-e and then evaluate the
 ;; following to test algorithms
 
+(defn- benchmark
+  "Benchmarks fn for testing algorithms"
+  {:added "1.0"}
+  [my-function]
+  (time (my-function))
+  :done)
+
 ;; Test the sort algorithm
 (clojure.pprint/pprint
  (sort-arena-by-distance-then-type sample-arena [3 3]))
-
-(time (sort-arena-by-distance-then-type sample-arena [3 3]))
+(benchmark #(sort-arena-by-distance-then-type sample-arena [3 3]))
 
 ;; Test state enrichment
 (clojure.pprint/pprint
  (enrich-state sample-state))
-
-(time (enrich-state sample-state))
+(benchmark #(enrich-state sample-state))
 
 (fn [state time-left]
   ;; TODO Wrap code above into this fn
