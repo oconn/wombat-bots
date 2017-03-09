@@ -159,6 +159,11 @@
      {:type "open", :uuid "b8ec04d4-7855-44fa-b600-eeba75b9f3be"},
      :meta []}]])
 
+
+(fn [state time-left]
+  ;; TODO Wrap code below into this fn
+)
+
 (def ^:private
   orientations
   [:n :s :e :w])
@@ -411,6 +416,24 @@
                  nil
                  sorted-arena)))
 
+(defn- choose-action
+  [{:keys [closest-food action-taken] :as enriched-state}]
+  (let [action-seq (or closest-food [{}])
+        action (first action-seq)
+        remaining-action-seq (vec (rest action-seq))]
+    (merge {:action action
+            :remaining-action-seq remaining-action-seq})))
+
+(defn- format-response
+  [{:keys [closest-food] :as enriched-state}]
+  {:action (if closest-food
+             (first closest-food)
+             {})
+   :state enriched-state}
+
+  ;; TODO
+  enriched-state)
+
 (defn enrich-state
   "Adds additional information to the given state used to improve
      the decision-making process"
@@ -421,7 +444,20 @@
       (sort-arena-by-distance-then-type)
       (remove-self-from-sorted-arena)
       (add-closest-food)
-      (update-global-view)))
+      (update-global-view)
+      (choose-action)
+      (format-response)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Evaluate each expresion with C-x C-e and then evaluate the
+;; following to test algorithms
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- benchmark
+  "Benchmarks fn for testing algorithms"
+  {:added "1.0"}
+  [my-function]
+  (time (my-function))
+  :done)
 
 (def ^:private sample-state
   {:local-coords [3 3]
@@ -429,16 +465,6 @@
    :global-dimensions [11 11]
    :arena sample-arena
    :saved-state {}})
-
-;; Evaluate each expresion with C-x C-e and then evaluate the
-;; following to test algorithms
-
-(defn- benchmark
-  "Benchmarks fn for testing algorithms"
-  {:added "1.0"}
-  [my-function]
-  (time (my-function))
-  :done)
 
 ;; Test the sort algorithm
 (clojure.pprint/pprint
@@ -449,7 +475,3 @@
 (clojure.pprint/pprint
  (enrich-state sample-state))
 (benchmark #(enrich-state sample-state))
-
-(fn [state time-left]
-  ;; TODO Wrap code above into this fn
-)
