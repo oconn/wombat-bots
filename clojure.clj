@@ -295,8 +295,11 @@
         (format-response)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;; Evaluate each expresion with C-x C-e and then evaluate the
-  ;; following to test algorithms
+;;
+;; Local Bot Testing
+;;
+;; Evaluate each expresion with C-x C-e and then evaluate the
+;; following to test algorithms
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (def sample-arena
     [[{:contents {:type "fog"}}
@@ -481,4 +484,10 @@
   ;; Test state enrichment
   (clojure.pprint/pprint
    (main-fn sample-state (fn [])))
-  (benchmark #(main-fn sample-state (fn []))))
+  (benchmark #(main-fn sample-state (fn [])))
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; End local Bot Testing
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;; Main function call
+  (main-fn state time-left))
