@@ -298,7 +298,7 @@
 
   (defn process-next-cmd
     "semi-inefficient, this ensures that the zakano blindly follow the first
-    action they deem \"good\" till completion"
+    action till completion"
     {:added "1.0"}
     [{:keys [remaining-action-seq] :as state}]
     (-> state
