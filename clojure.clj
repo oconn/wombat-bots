@@ -171,8 +171,7 @@
                    (merge explored {(get-in cell [:contents :uuid]) true})
                    (add-to-sorted-arena sorted-arena
                                         cell
-                                        frontier-node
-                                        #_(update frontier-node
+                                        (update frontier-node
                                                 :coords
                                                 update-global-coords-fn))))))))
 
@@ -269,8 +268,7 @@
     {:command command
      :state {:global-arena global-arena
              :remaining-action-seq remaining-action-seq
-             :frame-number frame-number
-             :arena (:arena enriched-state)}})
+             :frame-number frame-number}})
 
   (defn inc-frame-number
     [enriched-state {frame-number :frame-number}]
@@ -302,7 +300,7 @@
   ;; Evaluate each expresion with C-x C-e and then evaluate the
   ;; following to test algorithms
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (def sample-arena
+  (def ^:private sample-arena
     [[{:contents {:type "fog"}}
       {:contents {:type "fog"}}
       {:contents {:type "fog"}}
