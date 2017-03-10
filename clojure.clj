@@ -251,21 +251,27 @@
     (let [self (get-in-arena local-coords arena)]
       (assoc enriched-state :my-uuid (get-in self [:contents :uuid]))))
 
+  (defn get-first-of
+    "Returns the closest item's command sequence that matches the item-type"
+    [sorted-arena item-type]
+    (:cmd-sequence
+     (reduce
+      (fn [item weight-map]
+        (if item
+          item
+          (if (item-type weight-map)
+            (first (item-type weight-map))
+            nil)))
+      nil
+      sorted-arena)))
+
   (defn get-closest-food-seq
     [sorted-arena]
-    (reduce
-     (fn [food weight-map]
-       (if food
-         food
-         (if (:food weight-map)
-           (first (:food weight-map))
-           nil)))
-     nil
-     sorted-arena))
+    (get-first-of sorted-arena :food))
 
   (defn get-furthest-unexplored-seq
-    [enriched-state]
-    enriched-state)
+    [sorted-arena]
+    (get-first-of (reverse sorted-arena) :open))
 
   (defn choose-command
     [{:keys [sorted-arena] :as enriched-state}]
@@ -332,6 +338,5 @@
       (-> (enrich-state state)
           (choose-command)
           (format-response))))
-
 
   (main-fn state time-left))
