@@ -10,12 +10,6 @@
           y (count arena)]
       [x y]))
 
-  (defn get-arena-dimensions-zero-based
-    "returns the dimensions of a given arena"
-    {:added "1.0"}
-    [arena]
-    (map dec (get-arena-dimensions arena)))
-
   (defn get-in-arena
     "pulls the cell contents out of an arena at given coords"
     {:added "1.0"}
@@ -37,6 +31,16 @@
           current-orientation)
         current-orientation)))
 
+  (defn calculate-turn-frontiers
+    [{:keys [orientation coords weight cmd-sequence]}]
+    (map (fn [next-direction]
+           {:orientation (modify-orientation orientation next-direction)
+            :coords coords
+            :weight (inc weight)
+            :cmd-sequence (conj cmd-sequence {:action :turn
+                                              :metadata {:direction next-direction}})})
+         [:right :left :about-face]))
+
   (defn get-move-coords
     "Gets the updated coords for moving.
 
@@ -49,45 +53,35 @@
       :s [x (inc y)]
       :w [(dec x) y]))
 
-  (defn get-move-frontier
+  (defn get-move-frontier-coords
     "Returns the coords from the move command"
     {:added "1.0"}
     ([coords orientation dimensions]
-     (get-move-frontier coords orientation dimensions false))
-    ([[x y] orientation [max-x max-y] wrap?]
+     (get-move-frontier-coords coords orientation dimensions false))
+    ([[x y] orientation [dim-x dim-y] wrap?]
      (let [new-coords (get-move-coords [x y] orientation)
            [new-x new-y] new-coords]
+
        (if wrap?
          (case orientation
-           (:n :s) [new-x (mod new-y max-y)]
-           (:e :w) [(mod new-x max-x) new-y])
+           (:n :s) [new-x (mod new-y dim-y)]
+           (:e :w) [(mod new-x dim-x) new-y])
          (case orientation
            :n (if (< new-y 0) nil new-coords)
            :w (if (< new-x 0) nil new-coords)
-           :e (if (> new-x max-x) nil new-coords)
-           :s (if (> new-y max-y) nil new-coords))))))
+           :e (if (> new-x (dec dim-x)) nil new-coords)
+           :s (if (> new-y (dec dim-y)) nil new-coords))))))
 
-  (defn calculate-frontier
-    "Caclulates the new frontier set based off of the provided frontier."
-    {:added "1.0"}
-    ([frontier arena-dimensions]
-     (calculate-frontier frontier arena-dimensions false))
-    ([{:keys [orientation coords weight cmd-sequence]} arena-dimensions wrap?]
-     (let [frontier-orientations
-           (map (fn [next-direction]
-                  {:orientation (modify-orientation orientation next-direction)
-                   :coords coords
-                   :weight (inc weight)
-                   :cmd-sequence (conj cmd-sequence {:action :turn
-                                                     :metadata {:direction next-direction}})})
-                [:right :left :about-face])
-
-           frontier-move
-           {:orientation orientation
-            :coords (get-move-frontier coords orientation arena-dimensions wrap?)
-            :weight (inc weight)
-            :cmd-sequence (conj cmd-sequence {:action :move})}]
-       (conj frontier-orientations frontier-move))))
+  (defn calculate-move-frontier
+    [{:keys [orientation coords weight cmd-sequence]}
+     arena-dimensions
+     wrap?]
+    (let [coords (get-move-frontier-coords coords orientation arena-dimensions wrap?)]
+      (when coords
+        {:orientation orientation
+         :coords coords
+         :weight (inc weight)
+         :cmd-sequence (conj cmd-sequence {:action :move})})))
 
   (defn can-safely-occupy-space?
     "Predicate used to determine what cells can pass as frontiers"
@@ -96,17 +90,32 @@
     (not (contains? #{"wood-barrier" "steel-barrier" "fog"}
                     (get-in cell [:contents :type]))))
 
-  (defn filter-frontier
+  (defn filter-frontiers
     "Filters all the possible frontiers, returning only explore-able frontiers"
     {:added "1.0"}
-    [frontier arena explored]
+    [frontiers arena explored]
     (filter (fn [{coords :coords}]
-              (if (nil? coords)
-                false
-                (let [cell (get-in-arena coords arena)
-                      uuid (get-in cell [:contents :uuid])]
-                  (and (nil? (get explored uuid))
-                       (can-safely-occupy-space? cell))))) frontier))
+              (if (nil? coords) false
+                  (let [cell (get-in-arena coords arena)
+                        uuid (get-in cell [:contents :uuid])]
+                    (and (nil? (get explored uuid))
+                         (can-safely-occupy-space? cell))))) frontiers))
+
+  (defn calculate-frontier
+    "Caclulates the new frontier set based off of the provided frontier."
+    {:added "1.0"}
+    ([frontier arena explored]
+     ;; Default to false because this is currently only used for the partial arena
+     ;; which has no notion of wrapping.
+     (calculate-frontier frontier arena explored false))
+    ([frontier arena explored wrap?]
+     (filter-frontiers
+      (conj (calculate-turn-frontiers frontier)
+            (calculate-move-frontier frontier
+                                     (get-arena-dimensions arena)
+                                     wrap?))
+      arena
+      explored)))
 
   (defn add-to-sorted-arena
     "Adds a frontier node to the sorted arena"
@@ -142,30 +151,36 @@
             new-y (mod (+ global-y delta-y) dim-y)]
         [new-x new-y])))
 
+  (defn get-first-frontier
+    [{:keys [local-coords arena]}]
+    (let [{{orientation-str :orientation
+            uuid :uuid} :contents} (get-in-arena local-coords arena)]
+      {:coords local-coords
+       :orientation (keyword orientation-str)
+       :uuid uuid
+       :weight 0
+       :cmd-sequence []}))
+
   (defn sort-arena-by-distance-then-type
     "sorts an arena by distance then type"
     {:added "1.0"}
-    [{:keys [arena local-coords] :as enriched-state}]
-    (let [arena-dimensions (get-arena-dimensions-zero-based arena)
-          update-global-coords-fn (to-global-coords enriched-state)
-          {{orientation-str :orientation
-            uuid :uuid} :contents} (get-in-arena local-coords arena)
-          orientation (keyword orientation-str)]
-      (loop [frontier [{:coords local-coords
-                        :orientation orientation
-                        :uuid uuid
-                        :weight 0
-                        :cmd-sequence []}]
+    [{:keys [arena] :as enriched-state}]
+    (let [update-global-coords-fn (to-global-coords enriched-state)]
+      (loop [frontier [(get-first-frontier enriched-state)]
              explored {}
              sorted-arena []]
+
         (if (empty? frontier)
+          ;; All frontiers have been explored, break out with sorted-arena
+          ;; attached to state.
           (assoc enriched-state :sorted-arena sorted-arena)
 
           (let [frontier-node (first frontier)
                 cell (get-in-arena (:coords frontier-node) arena)
-                next-frontier (calculate-frontier frontier-node arena-dimensions)
-                filtered-frontier (filter-frontier next-frontier arena explored)]
-            (recur (vec (concat (rest frontier) filtered-frontier))
+                next-frontier (calculate-frontier frontier-node
+                                                  arena
+                                                  explored)]
+            (recur (vec (concat (rest frontier) next-frontier))
                    (merge explored {(get-in cell [:contents :uuid]) true})
                    (add-to-sorted-arena sorted-arena
                                         cell
@@ -294,7 +309,7 @@
     "Check to see if there is a next action in the action sequence/"
     {:added "1.0"}
     [{:keys [remaining-action-seq]}]
-    (and remaining-action-seq (not (empty? remaining-action-seq))))
+    (boolean (and remaining-action-seq (not (empty? remaining-action-seq)))))
 
   (defn main-fn
     [{:keys [saved-state] :as state} time-left]
@@ -309,200 +324,4 @@
           (choose-command)
           (format-response))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;;
-  ;; Local Bot Testing
-  ;;
-  ;; Evaluate each expresion with C-x C-e and then evaluate the
-  ;; following to test algorithms
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (def ^:private sample-arena
-    [[{:contents {:type "fog"}}
-      {:contents {:type "fog"}}
-      {:contents {:type "fog"}}
-      {:contents {:type "fog"}}
-      {:contents {:type "fog"}}
-      {:contents {:type "fog"}}
-      {:contents {:type "fog"}}]
-     [{:contents
-       {:type "wood-barrier",
-        :hp 20,
-        :uuid "174cb9d2-5634-48fb-9e9d-1a256cc3ad04",
-        :deterioration-level "low"},
-       :meta []}
-      {:contents
-       {:type "wood-barrier",
-        :hp 20,
-        :uuid "ba4cacd8-438f-41ab-8978-948281157691",
-        :deterioration-level "low"},
-       :meta []}
-      {:contents
-       {:type "wood-barrier",
-        :hp 20,
-        :uuid "11fefbb1-cd48-4bf9-9b11-0df1ed51b1c8",
-        :deterioration-level "low"},
-       :meta []}
-      {:contents
-       {:type "wood-barrier",
-        :hp 20,
-        :uuid "2dd14184-1bdf-421d-9bdf-3914df66dbe6",
-        :deterioration-level "low"},
-       :meta []}
-      {:contents
-       {:type "wood-barrier",
-        :hp 20,
-        :uuid "70a4ee76-061c-4c47-8a0a-58b2cd4ef25c",
-        :deterioration-level "low"},
-       :meta []}
-      {:contents
-       {:type "wood-barrier",
-        :hp 20,
-        :uuid "111e951e-9950-43eb-9981-5a1a9b44c1d4",
-        :deterioration-level "low"},
-       :meta []}
-      {:contents
-       {:type "wood-barrier",
-        :hp 20,
-        :uuid "4fb7a428-e3d8-4b81-9e49-9f084441b953",
-        :deterioration-level "low"},
-       :meta []}]
-     [{:contents
-       {:type "food", :uuid "d13b18eb-6c27-44a1-b88b-7e9b4d0b022a"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "32556f3e-4c66-4645-9b20-71932faaf29f"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "d1b70537-8614-4cc2-881d-cded36ecae17"},
-       :meta []}
-      {:contents
-       {:type "food", :uuid "a3a8a883-6f0a-4b4e-980d-8fbf5355029e"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "ad517c6c-edc4-4a28-903c-d81818b4572b"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "124b471e-722c-471c-9771-8a35cf68be28"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "b8ec04d4-7855-44fa-b600-eeba75b9f3be"},
-       :meta []}]
-     [{:contents
-       {:type "open", :uuid "c8d35c13-e34a-4aa5-b8b1-62f90a4cf704"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "32556f3e-4c66-4645-9b20-71932faaf29f"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "d1b70537-8614-4cc2-881d-cded36ecae17"},
-       :meta []}
-      {:contents
-       {:type "wombat",
-        :uuid "3f7f33fb-d16d-4b0b-a948-657bf864e0fa",
-        :color "gray",
-        :hp 100,
-        :orientation "e",
-        :deterioration-level "low"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "ad517c6c-edc4-4a28-903c-d81818b4572b"},
-       :meta []}
-      {:contents
-       {:type "poison", :uuid "e5e2937a-badd-440c-bee3-c9ef65818d97"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "b8ec04d4-7855-44fa-b600-eeba75b9f3be"},
-       :meta []}]
-     [{:contents
-       {:type "open", :uuid "c8d35c13-e34a-4aa5-b8b1-62f90a4cf704"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "32556f3e-4c66-4645-9b20-71932faaf29f"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "d1b70537-8614-4cc2-881d-cded36ecae17"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "19817042-e591-488a-ae91-8b5c993d87ec"},
-       :meta []}
-      {:contents
-       {:type "poison", :uuid "bffe627e-f7c3-4ea2-9762-fa5ac14a82ad"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "124b471e-722c-471c-9771-8a35cf68be28"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "b8ec04d4-7855-44fa-b600-eeba75b9f3be"},
-       :meta []}]
-     [{:contents
-       {:type "open", :uuid "c8d35c13-e34a-4aa5-b8b1-62f90a4cf704"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "32556f3e-4c66-4645-9b20-71932faaf29f"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "d1b70537-8614-4cc2-881d-cded36ecae17"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "19817042-e591-488a-ae91-8b5c993d87ec"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "ad517c6c-edc4-4a28-903c-d81818b4572b"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "124b471e-722c-471c-9771-8a35cf68be28"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "b8ec04d4-7855-44fa-b600-eeba75b9f3be"},
-       :meta []}]
-     [{:contents
-       {:type "open", :uuid "c8d35c13-e34a-4aa5-b8b1-62f90a4cf704"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "32556f3e-4c66-4645-9b20-71932faaf29f"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "d1b70537-8614-4cc2-881d-cded36ecae17"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "19817042-e591-488a-ae91-8b5c993d87ec"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "ad517c6c-edc4-4a28-903c-d81818b4572b"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "124b471e-722c-471c-9771-8a35cf68be28"},
-       :meta []}
-      {:contents
-       {:type "open", :uuid "b8ec04d4-7855-44fa-b600-eeba75b9f3be"},
-       :meta []}]])
-
-  (defn- benchmark
-    "Benchmarks fn for testing algorithms"
-    {:added "1.0"}
-    [my-function]
-    (time (my-function))
-    :done)
-
-  (def ^:private sample-state
-    {:local-coords [3 3]
-     :global-coords [2 1]
-     :global-dimensions [11 11]
-     :arena sample-arena
-     :saved-state {}})
-
-  ;; Test the sort algorithm
-  #_(clojure.pprint/pprint
-   (sort-arena-by-distance-then-type sample-state))
-  #_(benchmark #(sort-arena-by-distance-then-type sample-state))
-
-  ;; Test state enrichment
-  #_(clojure.pprint/pprint
-   (main-fn sample-state (fn [])))
-  #_(benchmark #(main-fn sample-state (fn [])))
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  ;; End local Bot Testing
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-  ;; Main function call
   (main-fn state time-left))
