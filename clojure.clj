@@ -1,7 +1,7 @@
 (fn [state time-left]
   (def ^:private orientations [:n :s :e :w])
 
-  (defn- get-arena-dimensions
+  (defn get-arena-dimensions
     "returns the dimensions of a given arena (NOTE: NOT 0 indexed)"
     {:added "1.0"
      :defined-in "wombats.arena.utils"}
@@ -10,19 +10,19 @@
           y (count arena)]
       [x y]))
 
-  (defn- get-arena-dimensions-zero-based
+  (defn get-arena-dimensions-zero-based
     "returns the dimensions of a given arena"
     {:added "1.0"}
     [arena]
     (map dec (get-arena-dimensions arena)))
 
-  (defn- get-in-arena
+  (defn get-in-arena
     "pulls the cell contents out of an arena at given coords"
     {:added "1.0"}
     [[x y] arena]
     (get-in arena [y x]))
 
-  (defn- modify-orientation
+  (defn modify-orientation
     "Return a new orientation based off a provided orientation and the direction
   you want to turn"
     {:added "1.0"
@@ -37,7 +37,7 @@
           current-orientation)
         current-orientation)))
 
-  (defn- get-move-coords
+  (defn get-move-coords
     "Gets the updated coords for moving.
 
   :Note wrapping not assumed."
@@ -49,7 +49,7 @@
       :s [x (inc y)]
       :w [(dec x) y]))
 
-  (defn- get-move-frontier
+  (defn get-move-frontier
     "Returns the coords from the move command"
     {:added "1.0"}
     ([coords orientation dimensions]
@@ -67,7 +67,7 @@
            :e (if (> new-x max-x) nil new-coords)
            :s (if (> new-y max-y) nil new-coords))))))
 
-  (defn- calculate-frontier
+  (defn calculate-frontier
     "Caclulates the new frontier set based off of the provided frontier."
     {:added "1.0"}
     ([frontier arena-dimensions]
@@ -91,14 +91,14 @@
             :cmd-sequence (conj cmd-sequence {:action :move})}]
        (conj frontier-orientations frontier-move))))
 
-  (defn- can-safely-occupy-space?
+  (defn can-safely-occupy-space?
     "Predicate used to determine what cells can pass as frontiers"
     {:added "1.0"}
     [cell]
     (not (contains? #{"wood-barrier" "steel-barrier" "fog"}
                     (get-in cell [:contents :type]))))
 
-  (defn- filter-frontier
+  (defn filter-frontier
     "Filters all the possible frontiers, returning only explore-able frontiers"
     {:added "1.0"}
     [frontier arena explored]
@@ -110,7 +110,7 @@
                   (and (nil? (get explored uuid))
                        (can-safely-occupy-space? cell))))) frontier))
 
-  (defn- add-to-sorted-arena
+  (defn add-to-sorted-arena
     "Adds a frontier node to the sorted arena"
     {:added "1.0"}
     [sorted-arena
@@ -130,7 +130,7 @@
                      (conj coll formatted-frontier)
                      [formatted-frontier])))))
 
-  (defn- to-global-coords
+  (defn to-global-coords
     "Converts local coordinates passed by the partially occluded arena
   to their corresponding global coordinates"
     {:added "1.0"}
@@ -175,7 +175,7 @@
                                                 :coords
                                                 update-global-coords-fn))))))))
 
-  (defn- remove-self
+  (defn remove-self
     [uuid]
     (fn [{:keys [wombat] :as weight-map}]
       (if wombat
@@ -185,7 +185,7 @@
             (assoc weight-map :wombat filtered-list)))
         weight-map)))
 
-  (defn- remove-self-from-sorted-arena
+  (defn remove-self-from-sorted-arena
     "removes current user from the sorted arena"
     {:added "1.0"}
     [{:keys [local-coords arena my-uuid] :as enriched-state}]
@@ -197,11 +197,11 @@
            (update 0 (remove-self my-uuid))
            (update 1 (remove-self my-uuid))))))
 
-  (defn- track-able-cell?
+  (defn track-able-cell?
     [{{type :type} :contents}]
     (not (contains? #{"fog"} type)))
 
-  (defn- update-global-view
+  (defn update-global-view
     "updates what your bot has seen historically"
     {:added "1.0"}
     [{:keys [global-arena arena my-uuid] :as enriched-state}]
@@ -231,12 +231,12 @@
                {:y-idx 0
                 :y-global-arena current-global-arena} arena)))))
 
-  (defn- add-my-uuid
+  (defn add-my-uuid
     [{:keys [local-coords arena] :as enriched-state}]
     (let [self (get-in-arena local-coords arena)]
       (assoc enriched-state :my-uuid (get-in self [:contents :uuid]))))
 
-  (defn- add-closest-food
+  (defn add-closest-food
     [{:keys [sorted-arena] :as enriched-state}]
     (assoc enriched-state
            :closest-food
@@ -249,7 +249,7 @@
                    nil
                    sorted-arena)))
 
-  (defn- choose-command
+  (defn choose-command
     [{:keys [closest-food] :as enriched-state}]
 
     (let [action-seq (or (:cmd-sequence closest-food) [])
@@ -259,7 +259,7 @@
              {:command action
               :remaining-action-seq (vec (rest action-seq))})))
 
-  (defn- format-response
+  (defn format-response
     [{:keys [command
              global-arena
              remaining-action-seq
@@ -270,7 +270,7 @@
              :remaining-action-seq remaining-action-seq
              :frame-number frame-number}})
 
-  (defn- inc-frame-number
+  (defn inc-frame-number
     [enriched-state {frame-number :frame-number}]
     (assoc enriched-state :frame-number (if frame-number (inc frame-number) 0)))
 
@@ -288,18 +288,17 @@
 
   (defn main-fn
     [state time-left]
-
     (-> (enrich-state state)
         (add-closest-food)
         (choose-command)
         (format-response)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Local Bot Testing
-;;
-;; Evaluate each expresion with C-x C-e and then evaluate the
-;; following to test algorithms
+  ;;
+  ;; Local Bot Testing
+  ;;
+  ;; Evaluate each expresion with C-x C-e and then evaluate the
+  ;; following to test algorithms
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (def sample-arena
     [[{:contents {:type "fog"}}
@@ -478,12 +477,12 @@
 
   ;; Test the sort algorithm
   #_(clojure.pprint/pprint
-   (sort-arena-by-distance-then-type sample-state))
+     (sort-arena-by-distance-then-type sample-state))
   #_(benchmark #(sort-arena-by-distance-then-type sample-state))
 
   ;; Test state enrichment
   #_(clojure.pprint/pprint
-   (main-fn sample-state (fn [])))
+     (main-fn sample-state (fn [])))
   #_(benchmark #(main-fn sample-state (fn [])))
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; End local Bot Testing
