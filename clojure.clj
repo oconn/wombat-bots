@@ -1,5 +1,4 @@
 (fn [state time-left]
-
   (defn get-arena-dimensions
     "returns the dimensions of a given arena (NOTE: NOT 0 indexed)"
     {:added "1.0"
@@ -217,10 +216,13 @@
     (not (contains? #{"fog"} type)))
 
   (defn update-global-view
-    "updates what your bot has seen historically"
+    "updates what your bot has seen historically."
     {:added "1.0"}
-    [{:keys [global-arena arena my-uuid global-dimensions] :as enriched-state}]
+    [{:keys [saved-state arena my-uuid global-dimensions] :as enriched-state}]
     (let [[dim-x dim-y] global-dimensions
+
+          global-arena (:global-arena saved-state)
+
           update-global-coords-fn
           (to-global-coords enriched-state)
 
@@ -296,6 +298,8 @@
               :remaining-action-seq remaining-sequence})))
 
   (defn format-response
+    "formats the final response object"
+    {:added "1.0"}
     [{command :command
       global-arena :global-arena
       remaining-action-seq :remaining-action-seq
