@@ -80,9 +80,7 @@
                    :weight (inc weight)
                    :cmd-sequence (conj cmd-sequence {:action :turn
                                                      :metadata {:direction next-direction}})})
-                (if (= weight 0)
-                  [:right :left :about-face]
-                  [:right :left]))
+                [:right :left :about-face])
 
            frontier-move
            {:orientation orientation
