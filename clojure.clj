@@ -289,7 +289,7 @@
     [global-arena]
     (fn [open-spaces]
       (let [unexplored (filter (fn [{coords :coords}]
-                                 (boolean (:explored? (get-in-arena coords global-arena))))
+                                 (boolean (not (:explored? (get-in-arena coords global-arena)))))
                                open-spaces)]
         (when (not (empty? unexplored))
           (first unexplored)))))
@@ -302,7 +302,7 @@
     [{:keys [sorted-arena global-arena] :as enriched-state}]
     ;; if the zakano doesn't know what to do next, it's
     ;; defense mechanism is to spin and shoot.
-    (let [action-sequence (or (get-closest-food-seq sorted-arena)
+    (let [action-sequence (or #_(get-closest-food-seq sorted-arena)
                               (get-furthest-unexplored-seq sorted-arena global-arena)
                               [{:action :shoot}
                                {:action :turn
@@ -312,10 +312,6 @@
       (merge enriched-state
              {:command action
               :remaining-action-seq remaining-sequence})))
-
-  (defn add-visited-coords
-    [arena [x y]]
-    )
 
   (defn format-response
     "formats the final response object"
@@ -327,9 +323,7 @@
       {frame-number :frame-number} :saved-state}]
 
     {:command command
-     :state {:global-arena (assoc-in global-arena
-                                     [global-y global-x :explored?]
-                                     true)
+     :state {:global-arena (assoc-in global-arena [global-y global-x :explored?] true)
              :remaining-action-seq remaining-action-seq
              :frame-number (if frame-number
                              (inc frame-number) 0)}})
