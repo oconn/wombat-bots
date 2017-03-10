@@ -268,7 +268,8 @@
     {:command command
      :state {:global-arena global-arena
              :remaining-action-seq remaining-action-seq
-             :frame-number frame-number}})
+             :frame-number frame-number
+             :arena (:arena enriched-state)}})
 
   (defn inc-frame-number
     [enriched-state {frame-number :frame-number}]
@@ -477,12 +478,12 @@
 
   ;; Test the sort algorithm
   #_(clojure.pprint/pprint
-     (sort-arena-by-distance-then-type sample-state))
+   (sort-arena-by-distance-then-type sample-state))
   #_(benchmark #(sort-arena-by-distance-then-type sample-state))
 
   ;; Test state enrichment
   #_(clojure.pprint/pprint
-     (main-fn sample-state (fn [])))
+   (main-fn sample-state (fn [])))
   #_(benchmark #(main-fn sample-state (fn [])))
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; End local Bot Testing
