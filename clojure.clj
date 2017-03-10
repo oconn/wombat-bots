@@ -302,7 +302,8 @@
     [{:keys [saved-state] :as state} time-left]
 
     (if (has-next-action? saved-state)
-      (-> state
+      (-> saved-state
+          (assoc :state saved-state)
           (process-next-cmd)
           (format-response))
 
