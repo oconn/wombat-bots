@@ -477,14 +477,14 @@
      :saved-state {}})
 
   ;; Test the sort algorithm
-  (clojure.pprint/pprint
+  #_(clojure.pprint/pprint
    (sort-arena-by-distance-then-type sample-state))
-  (benchmark #(sort-arena-by-distance-then-type sample-state))
+  #_(benchmark #(sort-arena-by-distance-then-type sample-state))
 
   ;; Test state enrichment
-  (clojure.pprint/pprint
+  #_(clojure.pprint/pprint
    (main-fn sample-state (fn [])))
-  (benchmark #(main-fn sample-state (fn [])))
+  #_(benchmark #(main-fn sample-state (fn [])))
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; End local Bot Testing
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
