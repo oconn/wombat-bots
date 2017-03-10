@@ -1,4 +1,5 @@
 (fn [state time-left]
+
   (defn get-arena-dimensions
     "returns the dimensions of a given arena (NOTE: NOT 0 indexed)"
     {:added "1.0"
@@ -318,9 +319,10 @@
     {:added "1.0"}
     [{command :command
       global-arena :global-arena
-      [global-x global-y] :global-coords
+      global-coords :global-coords
       remaining-action-seq :remaining-action-seq
-      {frame-number :frame-number} :saved-state}]
+      {frame-number :frame-number} :saved-state}
+     [global-x global-y]]
 
     {:command command
      :state {:global-arena (assoc-in global-arena [global-y global-x :explored?] true)
@@ -355,16 +357,16 @@
     (boolean (and remaining-action-seq (not (empty? remaining-action-seq)))))
 
   (defn main-fn
-    [{:keys [saved-state] :as state} time-left]
+    [{:keys [saved-state global-coords] :as state} time-left]
 
     (if (has-next-action? saved-state)
       (-> saved-state
           (assoc :saved-state saved-state)
           (process-next-cmd)
-          (format-response))
+          (format-response global-coords))
 
       (-> (enrich-state state)
           (choose-command)
-          (format-response))))
+          (format-response global-coords))))
 
   (main-fn state time-left))
