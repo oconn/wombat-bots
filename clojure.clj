@@ -1,4 +1,5 @@
 (fn [state time-left]
+
   (defn get-arena-dimensions
     "returns the dimensions of a given arena (NOTE: NOT 0 indexed)"
     {:added "1.0"
@@ -250,28 +251,36 @@
     (let [self (get-in-arena local-coords arena)]
       (assoc enriched-state :my-uuid (get-in self [:contents :uuid]))))
 
-  (defn add-closest-food
-    [{:keys [sorted-arena] :as enriched-state}]
-    (assoc enriched-state
-           :closest-food
-           (reduce (fn [food weight-map]
-                     (if food
-                       food
-                       (if (:food weight-map)
-                         (first (:food weight-map))
-                         nil)))
-                   nil
-                   sorted-arena)))
+  (defn get-closest-food-seq
+    [sorted-arena]
+    (reduce
+     (fn [food weight-map]
+       (if food
+         food
+         (if (:food weight-map)
+           (first (:food weight-map))
+           nil)))
+     nil
+     sorted-arena))
+
+  (defn get-furthest-unexplored-seq
+    [enriched-state]
+    enriched-state)
 
   (defn choose-command
-    [{:keys [closest-food] :as enriched-state}]
-
-    (let [action-seq (or (:cmd-sequence closest-food) [])
-          action (first action-seq)]
-
+    [{:keys [sorted-arena] :as enriched-state}]
+    ;; if the zakano doesn't know what to do next, it's
+    ;; defense mechanism is to spin and shoot.
+    (let [action-sequence (or (get-closest-food-seq sorted-arena)
+                              (get-furthest-unexplored-seq sorted-arena)
+                              [{:action :shoot}
+                               {:action :turn
+                                :metadata {:direction :right}}])
+          action (first action-sequence)
+          remaining-sequence (vec (rest action-sequence))]
       (merge enriched-state
              {:command action
-              :remaining-action-seq (vec (rest action-seq))})))
+              :remaining-action-seq remaining-sequence})))
 
   (defn format-response
     [{command :command
@@ -294,7 +303,6 @@
         (add-my-uuid)
         (sort-arena-by-distance-then-type)
         (remove-self-from-sorted-arena)
-        (add-closest-food)
         #_(update-global-view)))
 
   (defn process-next-cmd
@@ -324,5 +332,6 @@
       (-> (enrich-state state)
           (choose-command)
           (format-response))))
+
 
   (main-fn state time-left))
