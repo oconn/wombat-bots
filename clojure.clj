@@ -215,6 +215,16 @@
     [{{type :type} :contents}]
     (not (contains? #{"fog"} type)))
 
+  (defn update-in-global-arena
+    [global-arena [x y] {{cell-type :type} :contents}]
+    (update-in global-arena
+               [y x]
+               (fn [current-cell]
+                 (if (nil? current-cell)
+                   {:type cell-type
+                    :explored? false}
+                   (merge current-cell {:type cell-type})))))
+
   (defn update-global-view
     "updates what your bot has seen historically."
     {:added "1.0"}
@@ -242,11 +252,9 @@
                  (fn [{:keys [x-idx global-arena]} cell]
                    {:x-idx (inc x-idx)
                     :global-arena (if (track-able-cell? cell)
-                                    (assoc-in global-arena
-                                              (vec (reverse
-                                                    (update-global-coords-fn
-                                                     [x-idx y-idx])))
-                                              (get-in cell [:contents :type]))
+                                    (update-in-global-arena global-arena
+                                                            (update-global-coords-fn [x-idx y-idx])
+                                                            cell)
                                     global-arena)})
                  {:x-idx 0
                   :global-arena global-arena} row))})
@@ -262,32 +270,40 @@
 
   (defn get-first-of
     "Returns the closest item's command sequence that matches the item-type"
-    [sorted-arena item-type]
+    [sorted-arena item-type weight-coll-fn]
     (:cmd-sequence
      (reduce
       (fn [item weight-map]
         (if item
           item
-          (if (item-type weight-map)
-            (first (item-type weight-map))
-            nil)))
+          (when (item-type weight-map)
+            (weight-coll-fn (item-type weight-map)))))
       nil
       sorted-arena)))
 
   (defn get-closest-food-seq
     [sorted-arena]
-    (get-first-of sorted-arena :food))
+    (get-first-of sorted-arena :food first))
+
+  (defn check-if-explored
+    [global-arena]
+    (fn [open-spaces]
+      (let [unexplored (filter (fn [{coords :coords}]
+                                 (boolean (:explored? (get-in-arena coords global-arena))))
+                               open-spaces)]
+        (when (not (empty? unexplored))
+          (first unexplored)))))
 
   (defn get-furthest-unexplored-seq
-    [sorted-arena]
-    (get-first-of (reverse sorted-arena) :open))
+    [sorted-arena global-arena]
+    (get-first-of (reverse sorted-arena) :open (check-if-explored global-arena)))
 
   (defn choose-command
-    [{:keys [sorted-arena] :as enriched-state}]
+    [{:keys [sorted-arena global-arena] :as enriched-state}]
     ;; if the zakano doesn't know what to do next, it's
     ;; defense mechanism is to spin and shoot.
     (let [action-sequence (or (get-closest-food-seq sorted-arena)
-                              (get-furthest-unexplored-seq sorted-arena)
+                              (get-furthest-unexplored-seq sorted-arena global-arena)
                               [{:action :shoot}
                                {:action :turn
                                 :metadata {:direction :right}}])
@@ -297,16 +313,23 @@
              {:command action
               :remaining-action-seq remaining-sequence})))
 
+  (defn add-visited-coords
+    [arena [x y]]
+    )
+
   (defn format-response
     "formats the final response object"
     {:added "1.0"}
     [{command :command
       global-arena :global-arena
+      [global-x global-y] :global-coords
       remaining-action-seq :remaining-action-seq
       {frame-number :frame-number} :saved-state}]
 
     {:command command
-     :state {:global-arena global-arena
+     :state {:global-arena (assoc-in global-arena
+                                     [global-y global-x :explored?]
+                                     true)
              :remaining-action-seq remaining-action-seq
              :frame-number (if frame-number
                              (inc frame-number) 0)}})
