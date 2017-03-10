@@ -260,10 +260,10 @@
               :remaining-action-seq (vec (rest action-seq))})))
 
   (defn format-response
-    [{:keys [command
-             global-arena
-             remaining-action-seq
-             frame-number] :as enriched-state}]
+    [{command :command
+      global-arena :global-arena
+      remaining-action-seq :remaining-action-seq
+      {frame-number :frame-number} :saved-state}]
 
     {:command command
      :state {:global-arena global-arena
