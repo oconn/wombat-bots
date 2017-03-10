@@ -219,32 +219,39 @@
   (defn update-global-view
     "updates what your bot has seen historically"
     {:added "1.0"}
-    [{:keys [global-arena arena my-uuid] :as enriched-state}]
-    (let [update-global-coords-fn (to-global-coords enriched-state)
-          current-global-arena (if global-arena
-                                 global-arena
-                                 (vec (repeat 10 (vec (repeat 10 nil)))))]
+    [{:keys [global-arena arena my-uuid global-dimensions] :as enriched-state}]
+    (let [[dim-x dim-y] global-dimensions
+          update-global-coords-fn
+          (to-global-coords enriched-state)
 
-      (assoc enriched-state :global-arena
-             (:y-global-arena
-              (reduce
-               (fn [{:keys [y-idx y-global-arena] :as acc} row]
-                 {:y-idx (inc y-idx)
-                  :y-global-arena
-                  (:x-global-arena
-                   (reduce
-                    (fn [{:keys [x-idx x-global-arena]} cell]
-                      {:x-idx (inc x-idx)
-                       :x-global-arena (if (track-able-cell? cell)
-                                         (assoc-in x-global-arena
-                                                   (update-global-coords-fn
-                                                    (reverse [x-idx y-idx]))
-                                                   cell)
-                                         x-global-arena)})
-                    {:x-idx 0
-                     :x-global-arena y-global-arena} row))})
-               {:y-idx 0
-                :y-global-arena current-global-arena} arena)))))
+          current-global-arena
+          (if global-arena
+            global-arena
+            (vec (repeat dim-y (vec (repeat dim-x nil)))))
+
+          updated-global-arena
+          (:global-arena
+           (reduce
+            (fn [{:keys [y-idx global-arena] :as acc} row]
+              {:y-idx (inc y-idx)
+               :global-arena
+               (:global-arena
+                (reduce
+                 (fn [{:keys [x-idx global-arena]} cell]
+                   {:x-idx (inc x-idx)
+                    :global-arena (if (track-able-cell? cell)
+                                    (assoc-in global-arena
+                                              (vec (reverse
+                                                    (update-global-coords-fn
+                                                     [x-idx y-idx])))
+                                              (get-in cell [:contents :type]))
+                                    global-arena)})
+                 {:x-idx 0
+                  :global-arena global-arena} row))})
+            {:y-idx 0
+             :global-arena current-global-arena} arena))]
+
+      (assoc enriched-state :global-arena updated-global-arena)))
 
   (defn add-my-uuid
     [{:keys [local-coords arena] :as enriched-state}]
@@ -309,7 +316,7 @@
         (add-my-uuid)
         (sort-arena-by-distance-then-type)
         (remove-self-from-sorted-arena)
-        #_(update-global-view)))
+        (update-global-view)))
 
   (defn process-next-cmd
     "semi-inefficient, this ensures that the zakano blindly follow the first
