@@ -303,7 +303,7 @@
 
     (if (has-next-action? saved-state)
       (-> saved-state
-          (assoc :state saved-state)
+          (assoc :saved-state saved-state)
           (process-next-cmd)
           (format-response))
 
