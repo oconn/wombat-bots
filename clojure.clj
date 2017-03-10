@@ -1,6 +1,4 @@
 (fn [state time-left]
-  (def ^:private orientations [:n :s :e :w])
-
   (defn get-arena-dimensions
     "returns the dimensions of a given arena (NOTE: NOT 0 indexed)"
     {:added "1.0"
@@ -22,6 +20,9 @@
     {:added "1.0"
      :defined "wombats.game.utils"}
     [current-orientation modifier]
+
+    (def ^:private orientations [:n :e :s :w])
+
     (let [current-idx (.indexOf orientations current-orientation)]
       (if (not= current-idx -1)
         (condp = modifier
