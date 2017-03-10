@@ -359,14 +359,14 @@
   (defn main-fn
     [{:keys [saved-state global-coords] :as state} time-left]
 
-    #_(if (has-next-action? saved-state)
+    (if (has-next-action? saved-state)
       (-> saved-state
           (assoc :saved-state saved-state)
           (process-next-cmd)
-          (format-response global-coords)))
+          (format-response global-coords))
 
-    (-> (enrich-state state)
-        (choose-command)
-        (format-response global-coords)))
+      (-> (enrich-state state)
+          (choose-command)
+          (format-response global-coords))))
 
   (main-fn state time-left))
