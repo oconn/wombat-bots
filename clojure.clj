@@ -268,11 +268,8 @@
     {:command command
      :state {:global-arena global-arena
              :remaining-action-seq remaining-action-seq
-             :frame-number frame-number}})
-
-  (defn inc-frame-number
-    [enriched-state {frame-number :frame-number}]
-    (assoc enriched-state :frame-number (if frame-number (inc frame-number) 0)))
+             :frame-number (if frame-number
+                             (inc frame-number) 0)}})
 
   (defn enrich-state
     "Adds additional information to the given state used to improve
@@ -280,18 +277,38 @@
     {:added "1.0"}
     [{:keys [arena local-coords saved-state] :as state}]
     (-> state
-        (inc-frame-number saved-state)
         (add-my-uuid)
         (sort-arena-by-distance-then-type)
         (remove-self-from-sorted-arena)
+        (add-closest-food)
         #_(update-global-view)))
 
+  (defn process-next-cmd
+    "semi-inefficient, this ensures that the zakano blindly follow the first
+    action they deem \"good\" till completion"
+    {:added "1.0"}
+    [{:keys [remaining-action-seq] :as state}]
+    (-> state
+        (assoc :command (first remaining-action-seq))
+        (assoc :remaining-action-seq (vec (rest remaining-action-seq)))))
+
+  (defn has-next-action?
+    "Check to see if there is a next action in the action sequence/"
+    {:added "1.0"}
+    [{:keys [remaining-action-seq]}]
+    (and remaining-action-seq (not (empty? remaining-action-seq))))
+
   (defn main-fn
-    [state time-left]
-    (-> (enrich-state state)
-        (add-closest-food)
-        (choose-command)
-        (format-response)))
+    [{:keys [saved-state] :as state} time-left]
+
+    (if (has-next-action? saved-state)
+      (-> saved-state
+          (process-next-cmd)
+          (format-response))
+
+      (-> (enrich-state state)
+          (choose-command)
+          (format-response))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;;
