@@ -308,33 +308,32 @@
     ;; TODO check to see it the sequence in next-command is more efficient
     next-command)
 
-  (defn pathfinding-action
-    [{:keys [global-arena global-coords self global-dimensions]}]
-    (let [orientation (get-in self [:contents :orientation])
-          look-ahead 3 ;; TODO This should be passed in based off a l.o.s.
-          look-ahead-coords (loop [coords []
-                                   current-coords global-coords]
-                              (if (= (count coords) look-ahead)
-                                coords
-                                (let [next-coords (get-move-frontier-coords current-coords
-                                                                            orientation
-                                                                            global-dimensions)]
+(defn pathfinding-action
+  [{:keys [global-arena global-coords self global-dimensions]}]
+  (let [orientation (get-in self [:contents :orientation])
+        look-ahead 3 ;; TODO This should be passed in based off a l.o.s.
+        look-ahead-coords (loop [coords []
+                                 current-coords global-coords]
+                            (if (= (count coords) look-ahead)
+                              coords
+                              (let [next-coords (get-move-frontier-coords current-coords
+                                                                          orientation
+                                                                          global-dimensions)]
 
-                                  (recur (conj coords next-coords)
-                                         next-coords))))
-          look-ahead-items (set (map #(:type (get-in-arena % global-arena)) look-ahead-coords))
-          should-shoot? (not (empty? (clojure.set/intersection look-ahead-items
-                                                               #{"steel-barrier"
-                                                                 "wood-barrier"
-                                                                 "wombat"
-                                                                 "zakano"})))
-          should-turn? (contains? look-ahead-items "poison")]
+                                (recur (conj coords next-coords)
+                                       next-coords))))
+        look-ahead-items (set (map #(:type (get-in-arena % global-arena)) look-ahead-coords))
+        should-shoot? (some #(contains? look-ahead-items %) ["steel-barrier"
+                                                             "wood-barrier"
+                                                             "wombat"
+                                                             "zakano"])
+        should-turn? (contains? look-ahead-items "poison")]
 
-      {:action-sequence [(cond
-                           should-shoot? {:action :shoot}
-                           should-turn? {:action :turn
-                                         :metadata {:direction :right}}
-                           :else {:action :move})]}))
+    {:action-sequence [(cond
+                         should-shoot? {:action :shoot}
+                         should-turn? {:action :turn
+                                       :metadata {:direction :right}}
+                         :else {:action :move})]}))
 
   (defn clueless-action
     ;; if the zakano doesn't know what to do next, it's
