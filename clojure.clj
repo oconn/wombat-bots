@@ -1,5 +1,4 @@
 (fn [state time-left]
-
   (defn get-arena-dimensions
     "returns the dimensions of a given arena (NOTE: NOT 0 indexed)"
     {:added "1.0"
@@ -203,14 +202,14 @@
   (defn remove-self-from-sorted-arena
     "removes current user from the sorted arena"
     {:added "1.0"}
-    [{:keys [local-coords arena my-uuid] :as enriched-state}]
+    [{:keys [local-coords arena self] :as enriched-state}]
     (update-in
      enriched-state
      [:sorted-arena]
      (fn [sorted-arena]
        (-> sorted-arena
-           (update 0 (remove-self my-uuid))
-           (update 1 (remove-self my-uuid))))))
+           (update 0 (remove-self (:uuid self)))
+           (update 1 (remove-self (:uuid self)))))))
 
   (defn update-in-global-arena
     [global-arena [x y] {{cell-type :type} :contents}]
@@ -224,7 +223,7 @@
 
   (defn track-able-cell?
     [{{type :type} :contents}]
-    (not (contains? #{:fog} type)))
+    (not (contains? #{"fog"} type)))
 
   (defn add-to-global-arena
     [global-arena partial-arena update-global-coords-fn]
@@ -267,10 +266,10 @@
                (add-to-global-arena arena (to-global-coords enriched-state))
                (add-explored-to-global-arena global-coords))))
 
-  (defn add-my-uuid
+  (defn add-self
     [{:keys [local-coords arena] :as enriched-state}]
     (let [self (get-in-arena local-coords arena)]
-      (assoc enriched-state :my-uuid (get-in self [:contents :uuid]))))
+      (assoc enriched-state :self self)))
 
   (defn update-frame-number
     [{:keys [saved-state] :as enriched-state}]
@@ -297,7 +296,7 @@
          :metadata {:coords coords}})))
 
   (defn closest-food-action
-    [sorted-arena _]
+    [{:keys [sorted-arena]}]
     (get-first-of sorted-arena :food first))
 
   (defn closest-food-validation
@@ -306,26 +305,41 @@
 
   (defn food-equality
     [prev-command next-command]
-    ;; TODO
+    ;; TODO check to see it the sequence in next-command is more efficient
     next-command)
 
-  (defn furthest-unexplored-action
-    [sorted-arena global-arena]
-    (get-first-of
-     (reverse sorted-arena)
-     :open
-     (fn [open-spaces]
-       (let [unexplored (filter
-                         (fn [{coords :coords}]
-                           (boolean (not (:explored? (get-in-arena coords global-arena)))))
-                         open-spaces)]
-         (when (not (empty? unexplored))
-           (first unexplored))))))
+  (defn pathfinding-action
+    [{:keys [global-arena global-coords self global-dimensions]}]
+    (let [orientation (get-in self [:contents :orientation])
+          look-ahead 3 ;; TODO This should be passed in based off a l.o.s.
+          look-ahead-coords (loop [coords []
+                                   current-coords global-coords]
+                              (if (= (count coords) look-ahead)
+                                coords
+                                (let [next-coords (get-move-frontier-coords current-coords
+                                                                            orientation
+                                                                            global-dimensions)]
+
+                                  (recur (conj coords next-coords)
+                                         next-coords))))
+          look-ahead-items (set (map #(:type (get-in-arena % global-arena)) look-ahead-coords))
+          should-shoot? (not (empty? (clojure.set/intersection look-ahead-items
+                                                               #{"steel-barrier"
+                                                                 "wood-barrier"
+                                                                 "wombat"
+                                                                 "zakano"})))
+          should-turn? (contains? look-ahead-items "poison")]
+
+      {:action-sequence [(cond
+                           should-shoot? {:action :shoot}
+                           should-turn? {:action :turn
+                                         :metadata {:direction :right}}
+                           :else {:action :move})]}))
 
   (defn clueless-action
     ;; if the zakano doesn't know what to do next, it's
     ;; defense mechanism is to spin and shoot.
-    [_ _]
+    [_]
     {:action-sequence [{:action :turn
                         :metadata {:direction :right}}
                        {:action :shoot}]})
@@ -340,9 +354,9 @@
       :metadata metadata}))
 
   (defn xform-command
-    [sorted-arena global-arena action-name action-fn]
+    [enriched-state action-name action-fn]
     (let [{action-sequence :action-sequence
-           metadata :metadata} (action-fn sorted-arena global-arena)]
+           metadata :metadata} (action-fn enriched-state)]
       (when action-sequence (format-command action-name action-sequence metadata))))
 
   (defn format-prev-command
@@ -355,22 +369,19 @@
       :fn closest-food-action
       :validate-command closest-food-validation
       :equality-command food-equality}
-     {:name "unexplored"
-      :fn furthest-unexplored-action
+     {:name "pathfinding"
+      :fn pathfinding-action
       :validate-command (fn [] true)
-      :equality-command (fn [prev next] prev)}
+      :equality-command (fn [prev next] next)}
      {:name "clueless"
       :fn clueless-action
       :validate-command (fn [] true)
       :equality-command (fn [prev next] prev)}])
 
   (defn calculate-next-command
-    [sorted-arena global-arena]
+    [enriched-state]
     (first (filter #(not (nil? %))
-                   (map #(xform-command sorted-arena
-                                        global-arena
-                                        (:name %)
-                                        (:fn %))
+                   (map #(xform-command enriched-state (:name %) (:fn %))
                         command-priority))))
 
   (defn calculate-optimal-command
@@ -390,8 +401,7 @@
   (defn choose-command
     [{:keys [saved-state sorted-arena global-arena] :as enriched-state}]
     (let [prev-command (format-prev-command (:prev-command saved-state))
-          next-command (calculate-next-command sorted-arena
-                                               global-arena)
+          next-command (calculate-next-command enriched-state)
           selected-command (if prev-command
                              (calculate-optimal-command prev-command
                                                         next-command
@@ -417,7 +427,7 @@
     {:added "1.0"}
     [state]
     (-> state
-        (add-my-uuid)
+        (add-self)
         (sort-arena-by-distance-then-type)
         (remove-self-from-sorted-arena)
         (update-global-view)
