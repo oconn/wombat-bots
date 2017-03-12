@@ -318,7 +318,8 @@
                                 coords
                                 (let [next-coords (get-move-frontier-coords current-coords
                                                                             orientation
-                                                                            global-dimensions)]
+                                                                            global-dimensions
+                                                                            true)]
 
                                   (recur (conj coords next-coords)
                                          next-coords))))
