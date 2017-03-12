@@ -64,10 +64,10 @@
            [new-x new-y] new-coords]
 
        (if wrap?
-         (case orientation
+         (case (keyword orientation)
            (:n :s) [new-x (mod new-y dim-y)]
            (:e :w) [(mod new-x dim-x) new-y])
-         (case orientation
+         (case (keyword orientation)
            :n (if (< new-y 0) nil new-coords)
            :w (if (< new-x 0) nil new-coords)
            :e (if (> new-x (dec dim-x)) nil new-coords)
