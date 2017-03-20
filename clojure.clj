@@ -278,6 +278,31 @@
              :frame-number
              (if frame-number (inc frame-number) 0))))
 
+  (defn get-look-ahead-items
+    "Get n numnber of cells in front of slef"
+    [{:keys [self
+             current-coords
+             global-coords
+             global-dimensions
+             global-arena]}
+     look-ahead-distance]
+    (let [orientation
+          (get-in self [:contents :orientation])
+
+          look-ahead-coords
+          (loop [coords []
+                 current-coords global-coords]
+            (if (= (count coords) look-ahead-distance)
+              coords
+              (let [next-coords (get-move-frontier-coords current-coords
+                                                          orientation
+                                                          global-dimensions
+                                                          true)]
+
+                (recur (conj coords next-coords)
+                       next-coords))))]
+      (map #(:type (get-in-arena % global-arena)) look-ahead-coords)))
+
   (defn get-first-of
     "Returns the closest item's command sequence that matches the item-type"
     [sorted-arena item-type weight-coll-fn]
@@ -308,28 +333,6 @@
     ;; TODO check to see it the sequence in next-command is more efficient
     next-command)
 
-  (defn get-look-ahead-items
-    "Get n numnber of cells in front of slef"
-    [{:keys [self
-             current-coords
-             global-coords
-             global-dimensions
-             global-arena]}
-     look-ahead-distance]
-    (let [orientation (get-in self [:contents :orientation])
-          look-ahead-coords (loop [coords []
-                                   current-coords global-coords]
-                              (if (= (count coords) look-ahead-distance)
-                                coords
-                                (let [next-coords (get-move-frontier-coords current-coords
-                                                                            orientation
-                                                                            global-dimensions
-                                                                            true)]
-
-                                  (recur (conj coords next-coords)
-                                         next-coords))))]
-      (map #(:type (get-in-arena % global-arena)) look-ahead-coords)))
-
   (defn pathfinding-action
     [enriched-state]
     (let [look-ahead-items (set (get-look-ahead-items enriched-state 3))
@@ -347,7 +350,11 @@
                            :else {:action :move})]}))
 
   (defn fire-action
-    [])
+    [enriched-state]
+    (let [look-ahead-items (set (get-look-ahead-items enriched-state 3))
+          should-shoot? (some #(contains? look-ahead-items %)
+                              ["zakano"
+                               "wombat"])]))
 
   (defn clueless-action
     ;; if the zakano doesn't know what to do next, it's
@@ -378,10 +385,10 @@
       (format-command action-name remaining-action-seq metadata)))
 
   (def command-priority
-    [#_{:name "fire!"
-        :fn fire-action
-        :validate-command (fn [] true)
-        :equality-command (fn [prev next] next)}
+    [{:name "fire!"
+      :fn fire-action
+      :validate-command (fn [] true)
+      :equality-command (fn [prev next] next)}
      {:name "food"
       :fn closest-food-action
       :validate-command closest-food-validation
