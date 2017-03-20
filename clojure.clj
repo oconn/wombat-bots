@@ -332,7 +332,7 @@
 
   (defn pathfinding-action
     [enriched-state]
-    (let [look-ahead-items (set (get-look-ahead-items enrich-state 3))
+    (let [look-ahead-items (set (get-look-ahead-items enriched-state 3))
           should-shoot? (some #(contains? look-ahead-items %)
                               ["wood-barrier"
                                "wombat"
