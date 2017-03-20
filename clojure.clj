@@ -303,9 +303,10 @@
 
                 (recur (conj coords next-coords)
                        next-coords))))]
-      (map (fn [coords]
-             (:type (get-in-arena coords global-arena))
-             look-ahead-coords))))
+      (vec
+       (map (fn [coords]
+              (:type (get-in-arena coords global-arena)))
+            look-ahead-coords))))
 
   (defn get-first-of
     "Returns the closest item's command sequence that matches the item-type"
@@ -393,7 +394,7 @@
 
   (defn get-command-priority
     []
-    [{:name "fire!"
+    [#_{:name "fire!"
       :fn fire-action
       :validate-command (fn [] true)
       :equality-command (fn [prev next] next)}
