@@ -193,7 +193,9 @@
     [uuid]
     (fn [{:keys [wombat] :as weight-map}]
       (if wombat
-        (let [filtered-list (vec (filter #(not= uuid (:uuid %)) wombat))]
+        (let [filtered-list (vec (filter (fn [wombat]
+                                           (not= uuid (:uuid wombat)))
+                                         wombat))]
           (if (empty? filtered-list)
             (dissoc weight-map :wombat)
             (assoc weight-map :wombat filtered-list)))
@@ -278,6 +280,34 @@
              :frame-number
              (if frame-number (inc frame-number) 0))))
 
+  (defn get-look-ahead-items
+    "Get n numnber of cells in front of slef"
+    [{:keys [self
+             current-coords
+             global-coords
+             global-dimensions
+             global-arena]}
+     look-ahead-distance]
+    (let [orientation
+          (get-in self [:contents :orientation])
+
+          look-ahead-coords
+          (loop [coords []
+                 current-coords global-coords]
+            (if (= (count coords) look-ahead-distance)
+              coords
+              (let [next-coords (get-move-frontier-coords current-coords
+                                                          orientation
+                                                          global-dimensions
+                                                          true)]
+
+                (recur (conj coords next-coords)
+                       next-coords))))]
+      (vec
+       (map (fn [coords]
+              (:type (get-in-arena coords global-arena)))
+            look-ahead-coords))))
+
   (defn get-first-of
     "Returns the closest item's command sequence that matches the item-type"
     [sorted-arena item-type weight-coll-fn]
@@ -309,32 +339,30 @@
     next-command)
 
   (defn pathfinding-action
-    [{:keys [global-arena global-coords self global-dimensions]}]
-    (let [orientation (get-in self [:contents :orientation])
-          look-ahead 3 ;; TODO This should be passed in based off a l.o.s.
-          look-ahead-coords (loop [coords []
-                                   current-coords global-coords]
-                              (if (= (count coords) look-ahead)
-                                coords
-                                (let [next-coords (get-move-frontier-coords current-coords
-                                                                            orientation
-                                                                            global-dimensions
-                                                                            true)]
-
-                                  (recur (conj coords next-coords)
-                                         next-coords))))
-          look-ahead-items (set (map #(:type (get-in-arena % global-arena)) look-ahead-coords))
-          should-shoot? (some #(contains? look-ahead-items %) ["steel-barrier"
-                                                               "wood-barrier"
-                                                               "wombat"
-                                                               "zakano"])
-          should-turn? (contains? look-ahead-items "poison")]
-
+    [enriched-state]
+    (let [look-ahead-items (set (get-look-ahead-items enriched-state 3))
+          should-shoot? (some (fn [element]
+                                (contains? look-ahead-items element))
+                              ["wood-barrier"
+                               "wombat"
+                               "zakano"])
+          should-turn? (some (fn [element]
+                               (contains? look-ahead-items element))
+                             ["poison"
+                              "steel-barrier"])]
       {:action-sequence [(cond
                            should-shoot? {:action :shoot}
                            should-turn? {:action :turn
                                          :metadata {:direction :right}}
                            :else {:action :move})]}))
+
+  (defn fire-action
+    [enriched-state]
+    (let [look-ahead-items (set (get-look-ahead-items enriched-state 3))
+          should-shoot? (some (fn [element]
+                                (contains? look-ahead-items element))
+                              ["zakano"
+                               "wombat"])]))
 
   (defn clueless-action
     ;; if the zakano doesn't know what to do next, it's
@@ -364,8 +392,13 @@
     (when (and prev-command (not (empty? remaining-action-seq)))
       (format-command action-name remaining-action-seq metadata)))
 
-  (def command-priority
-    [{:name "food"
+  (defn get-command-priority
+    []
+    [{:name "fire!"
+      :fn fire-action
+      :validate-command (fn [] true)
+      :equality-command (fn [prev next] next)}
+     {:name "food"
       :fn closest-food-action
       :validate-command closest-food-validation
       :equality-command food-equality}
@@ -380,13 +413,17 @@
 
   (defn calculate-next-command
     [enriched-state]
-    (first (filter #(not (nil? %))
-                   (map #(xform-command enriched-state (:name %) (:fn %))
-                        command-priority))))
+    (first (filter (fn [command] (not (nil? command)))
+                   (map (fn [command]
+                          (xform-command enriched-state
+                                         (:name command)
+                                         (:fn command)))
+                        (get-command-priority)))))
 
   (defn calculate-optimal-command
     [prev-command next-command global-arena]
-    (let [commands (map #(:name %) command-priority)
+    (let [command-priority (get-command-priority)
+          commands (map (fn [{:keys [name]}] name) command-priority)
           prev-weight (.indexOf commands (:action-name prev-command))
           next-weight (.indexOf commands (:action-name next-command))
           prev-command-check (get-in command-priority [prev-weight :validate-command])
@@ -414,12 +451,14 @@
     {:added "1.0"}
     [{global-arena :global-arena
       next-command :next-command
-      frame-number :frame-number}]
+      frame-number :frame-number}
+     time-left]
 
     {:command (:command next-command)
      :state {:global-arena global-arena
              :prev-command next-command
-             :frame-number frame-number}})
+             :frame-number frame-number
+             :time-left (str (time-left))}})
 
   (defn enrich-state
     "Adds additional information to the given state used to improve
@@ -437,6 +476,6 @@
     [state time-left]
     (-> (enrich-state state)
         (choose-command)
-        (format-response)))
+        (format-response time-left)))
 
   (main-fn state time-left))
