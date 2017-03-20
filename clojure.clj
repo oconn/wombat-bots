@@ -308,13 +308,18 @@
     ;; TODO check to see it the sequence in next-command is more efficient
     next-command)
 
-  (defn pathfinding-action
-    [{:keys [global-arena global-coords self global-dimensions]}]
+  (defn get-look-ahead-items
+    "Get n numnber of cells in front of slef"
+    [{:keys [self
+             current-coords
+             global-coords
+             global-dimensions
+             global-arena]}
+     look-ahead-distance]
     (let [orientation (get-in self [:contents :orientation])
-          look-ahead 3 ;; TODO This should be passed in based off a l.o.s.
           look-ahead-coords (loop [coords []
                                    current-coords global-coords]
-                              (if (= (count coords) look-ahead)
+                              (if (= (count coords) look-ahead-distance)
                                 coords
                                 (let [next-coords (get-move-frontier-coords current-coords
                                                                             orientation
@@ -322,19 +327,27 @@
                                                                             true)]
 
                                   (recur (conj coords next-coords)
-                                         next-coords))))
-          look-ahead-items (set (map #(:type (get-in-arena % global-arena)) look-ahead-coords))
-          should-shoot? (some #(contains? look-ahead-items %) ["steel-barrier"
-                                                               "wood-barrier"
-                                                               "wombat"
-                                                               "zakano"])
-          should-turn? (contains? look-ahead-items "poison")]
+                                         next-coords))))]
+      (map #(:type (get-in-arena % global-arena)) look-ahead-coords)))
 
+  (defn pathfinding-action
+    [enriched-state]
+    (let [look-ahead-items (set (get-look-ahead-items enrich-state 3))
+          should-shoot? (some #(contains? look-ahead-items %)
+                              ["wood-barrier"
+                               "wombat"
+                               "zakano"])
+          should-turn? (some #(contains? look-ahead-items %)
+                             ["poison"
+                              "steel-barrier"])]
       {:action-sequence [(cond
                            should-shoot? {:action :shoot}
                            should-turn? {:action :turn
                                          :metadata {:direction :right}}
                            :else {:action :move})]}))
+
+  (defn fire-action
+    [])
 
   (defn clueless-action
     ;; if the zakano doesn't know what to do next, it's
@@ -365,7 +378,11 @@
       (format-command action-name remaining-action-seq metadata)))
 
   (def command-priority
-    [{:name "food"
+    [#_{:name "fire!"
+        :fn fire-action
+        :validate-command (fn [] true)
+        :equality-command (fn [prev next] next)}
+     {:name "food"
       :fn closest-food-action
       :validate-command closest-food-validation
       :equality-command food-equality}
