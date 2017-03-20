@@ -88,7 +88,7 @@
     "Predicate used to determine what cells can pass as frontiers"
     {:added "1.0"}
     [cell]
-    (not (contains? #{:wood-barrier :steel-barrier :fog}
+    (not (contains? #{"wood-barrier" "steel-barrier" "fog"}
                     (get-in cell [:contents :type]))))
 
   (defn filter-frontiers
