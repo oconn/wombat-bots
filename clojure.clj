@@ -193,7 +193,9 @@
     [uuid]
     (fn [{:keys [wombat] :as weight-map}]
       (if wombat
-        (let [filtered-list (vec (filter #(not= uuid (:uuid %)) wombat))]
+        (let [filtered-list (vec (filter (fn [wombat]
+                                           (not= uuid (:uuid wombat)))
+                                         wombat))]
           (if (empty? filtered-list)
             (dissoc weight-map :wombat)
             (assoc weight-map :wombat filtered-list)))
@@ -301,7 +303,9 @@
 
                 (recur (conj coords next-coords)
                        next-coords))))]
-      (map #(:type (get-in-arena % global-arena)) look-ahead-coords)))
+      (map (fn [coords]
+             (:type (get-in-arena coords global-arena))
+             look-ahead-coords))))
 
   (defn get-first-of
     "Returns the closest item's command sequence that matches the item-type"
@@ -336,11 +340,13 @@
   (defn pathfinding-action
     [enriched-state]
     (let [look-ahead-items (set (get-look-ahead-items enriched-state 3))
-          should-shoot? (some #(contains? look-ahead-items %)
+          should-shoot? (some (fn [element]
+                                (contains? look-ahead-items element))
                               ["wood-barrier"
                                "wombat"
                                "zakano"])
-          should-turn? (some #(contains? look-ahead-items %)
+          should-turn? (some (fn [element]
+                               (contains? look-ahead-items element))
                              ["poison"
                               "steel-barrier"])]
       {:action-sequence [(cond
@@ -352,7 +358,8 @@
   (defn fire-action
     [enriched-state]
     (let [look-ahead-items (set (get-look-ahead-items enriched-state 3))
-          should-shoot? (some #(contains? look-ahead-items %)
+          should-shoot? (some (fn [element]
+                                (contains? look-ahead-items element))
                               ["zakano"
                                "wombat"])]))
 
@@ -405,14 +412,17 @@
 
   (defn calculate-next-command
     [enriched-state]
-    (first (filter #(not (nil? %))
-                   (map #(xform-command enriched-state (:name %) (:fn %))
+    (first (filter (fn [command] (not (nil? command)))
+                   (map (fn [command]
+                          (xform-command enriched-state
+                                         (:name command)
+                                         (:fn command)))
                         (get-command-priority)))))
 
   (defn calculate-optimal-command
     [prev-command next-command global-arena]
     (let [command-priority (get-command-priority)
-          commands (map #(:name %) command-priority)
+          commands (map (fn [{:keys [name]}] name) command-priority)
           prev-weight (.indexOf commands (:action-name prev-command))
           next-weight (.indexOf commands (:action-name next-command))
           prev-command-check (get-in command-priority [prev-weight :validate-command])
