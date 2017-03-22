@@ -8,7 +8,7 @@
                                     :metadata {:direction (rand-nth turn-directions)}})
                          (repeat 0 {:action :shoot
                                       :metadata {}})
-                         (repeat 0 {:action :smoke
+                         (repeat 2 {:action :smoke
                                     :metadata {:direction (rand-nth smoke-directions)}})]]
 
     {:command (rand-nth (flatten command-options))
